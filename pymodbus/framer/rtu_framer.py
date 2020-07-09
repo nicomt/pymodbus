@@ -86,7 +86,6 @@ class ModbusRtuFramer(ModbusFramer):
         2. Discard frame if UID does not match
         """
         try:
-            self.populateHeader()
             frame_size = self._header['len']
             data = self._buffer[:frame_size - 2]
             crc = self._buffer[frame_size - 2:frame_size]
@@ -137,13 +136,15 @@ class ModbusRtuFramer(ModbusFramer):
 
         :returns: True if ready, False otherwise
         """
-        if len(self._buffer) > self._hsize:
-            if not self._header:
-                self.populateHeader()
 
-            return self._header and len(self._buffer) >= self._header['len']
-        else:
-            return False
+        size = self._header.get('len', 0)
+        if size == 0 and len(self._buffer) > self._hsize:
+            try:
+                size = self.populateHeader()
+            except IndexError:
+                return False
+
+        return len(self._buffer) >= size if size > 0 else False
 
     def populateHeader(self, data=None):
         """
@@ -163,6 +164,7 @@ class ModbusRtuFramer(ModbusFramer):
         size = pdu_class.calculateRtuFrameSize(data)
         self._header['len'] = size
         self._header['crc'] = data[size - 2:size]
+        return size
 
     def addToFrame(self, message):
         """
